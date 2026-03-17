@@ -14,7 +14,7 @@ static std::string GetProgramPath() {
     return "";
 }
 
-void SherpaTTS::Init(std::string &device_name, std::string &config_path){
+void SherpaTTS::Init(std::string &device_name, std::string &config_path, std::string &language_type_){
     sherpa_onnx::ParseOptions po_("");
     int32_t sid = 0;
     po_.Register("device-name", &device_name, "ALSA playback device name");
@@ -22,19 +22,33 @@ void SherpaTTS::Init(std::string &device_name, std::string &config_path){
     sherpa_onnx::OfflineTtsConfig config;
     config.Register(&po_);
     std::string name = GetProgramPath();
-    std::vector<std::string> args = {
-        name,
-        "--num-threads=4",
-        "--matcha-acoustic-model=" + config_path + "/model-steps-3.onnx",
-        "--matcha-vocoder=" + config_path + "/vocos-22khz-univ.onnx",
-        "--matcha-lexicon=" + config_path + "/lexicon.txt",
-        "--matcha-tokens=" + config_path + "/tokens.txt",
-        "--matcha-dict-dir=" + config_path + "/dict",
-        "--debug=0",
-        "--tts-rule-fsts=" + config_path + "/phone.fst," +
-                           config_path + "/date.fst," +
-                           config_path + "/number.fst"
-    };
+    std::vector<std::string> args;
+    if  (language_type_ == "en"){
+        args= {
+            name,
+            "--num-threads=4",
+            "--matcha-acoustic-model=" + config_path + "/model-steps-3.onnx",
+            "--matcha-vocoder=" + config_path + "/vocos-22khz-univ.onnx",
+            "--matcha-tokens=" + config_path + "/tokens.txt",
+            "--matcha-data-dir=" + config_path + "/espeak-ng-data",
+            "--debug=0",
+        };
+    } else {
+        args = {
+            name,
+            "--num-threads=4",
+            "--matcha-acoustic-model=" + config_path + "/model-steps-3.onnx",
+            "--matcha-vocoder=" + config_path + "/vocos-22khz-univ.onnx",
+            "--matcha-lexicon=" + config_path + "/lexicon.txt",
+            "--matcha-tokens=" + config_path + "/tokens.txt",
+            "--matcha-dict-dir=" + config_path + "/dict",
+            "--debug=0",
+            "--tts-rule-fsts=" + config_path + "/phone.fst," +
+                            config_path + "/date.fst," +
+                            config_path + "/number.fst"
+        };
+    }
+
     std::vector<char*> argv2;
     for (auto& s : args) {
         argv2.push_back(const_cast<char*>(s.c_str()));

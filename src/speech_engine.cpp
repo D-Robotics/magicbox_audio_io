@@ -27,6 +27,12 @@ struct callback_data {
     std::vector<uint8_t> data;
 };
 
+static std::string to_lower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return s;
+}
+
 static std::string ggml_ne_string(const ggml_tensor * t) {
     std::string str;
     for (int i = 0; i < GGML_MAX_DIMS; ++i) {
@@ -156,7 +162,8 @@ void sense_voice_free(struct sense_voice_context * ctx) {
 }
 
 
-int speech_engine::Init(const std::string &cfg_path, const std::string &kws_cfg_path, ASRCallBackFunc cmd_func) {
+int speech_engine::Init(const std::string &cfg_path, const std::string &kws_cfg_path, const std::string &language_type, ASRCallBackFunc cmd_func) {
+  language_type_ = language_type;
   asr_data_cb_ = cmd_func;
   params.model = cfg_path;
   vad_pad.resize(64, 0.0f);
@@ -182,12 +189,12 @@ int speech_engine::Init(const std::string &cfg_path, const std::string &kws_cfg_
       return -1;
   }
 
-  ctx->language_id = sense_voice_lang_id(params.language.c_str());
+  ctx->language_id = sense_voice_lang_id(language_type.c_str());
   wparams = sense_voice_full_default_params(SENSE_VOICE_SAMPLING_GREEDY);
   wparams.strategy = (params.beam_size > 1 ) ? SENSE_VOICE_SAMPLING_BEAM_SEARCH : SENSE_VOICE_SAMPLING_GREEDY;
   wparams.print_progress   = params.print_progress;
   wparams.print_timestamps = !params.no_timestamps;
-  wparams.language         = params.language.c_str();
+  wparams.language         = language_type.c_str();
   wparams.n_threads        = params.n_threads;
   wparams.n_max_text_ctx   = params.max_context >= 0 ? params.max_context : wparams.n_max_text_ctx;
   wparams.offset_ms        = params.offset_t_ms;
@@ -250,6 +257,13 @@ int speech_engine::Stop() {
 void speech_engine::send_data(std::shared_ptr<std::vector<double>> data) {
   if (data->size() == 0) return;
   std::lock_guard<std::mutex> lock(mutex);
+
+  pre_buffer.insert(pre_buffer.end(), data->begin(), data->end());
+  if (pre_buffer.size() > PRE_BUFFER_SIZE) {
+      pre_buffer.erase(pre_buffer.begin(),
+                       pre_buffer.begin() + (pre_buffer.size() - PRE_BUFFER_SIZE));
+  }
+
   int size = data->size();
   std::vector<float> chunk;
   chunk.resize(2 * SENSE_VOICE_VAD_CHUNK_PAD_SIZE + size);
@@ -313,6 +327,9 @@ void speech_engine::send_data(std::shared_ptr<std::vector<double>> data) {
     triggered = 1;
     if (vad_data_ptr == nullptr) {
       vad_data_ptr = std::make_shared<std::vector<double>>();
+      vad_data_ptr->insert(vad_data_ptr->end(),
+                          pre_buffer.begin(),
+                          pre_buffer.end());
     }
     if (vad_mute.size() > 0) {
       vad_data_ptr->insert(vad_data_ptr->end(),  std::make_move_iterator(vad_mute.begin()), std::make_move_iterator(vad_mute.end()));
@@ -341,7 +358,7 @@ void speech_engine::process(void) {
   try {
     //获取关键词列表
     std::vector<std::string> key_words_list;
-    if(!sherpa_kws_.ExtractChineseFromFile(key_words_list)){
+    if((!sherpa_kws_.ExtractChineseFromFile(key_words_list) && language_type_ == "zh") || (!sherpa_kws_.ExtractEnglishFromFile(key_words_list) && language_type_ == "en")){
       return;
     }
     while (true) {
@@ -384,8 +401,10 @@ void speech_engine::process(void) {
           for (size_t i = 0; i < data->size(); ++i) {
               dst[i] = static_cast<float>((*data)[i] / 32768.f);
           }
-          key_word_sherpa = sherpa_kws_.GetKeyWord(dst);
-
+          key_word_sherpa = (language_type_ == "en") ? to_lower(sherpa_kws_.GetKeyWord(dst)) : sherpa_kws_.GetKeyWord(dst);
+          if(key_word_sherpa != ""){
+            std::cout<<"key_word_sherpa: "<<key_word_sherpa<<std::endl;
+          }
           //使用文字匹配检测
           for(const auto &kw : key_words_list){
             if (tmp_str.find(kw) != std::string::npos){

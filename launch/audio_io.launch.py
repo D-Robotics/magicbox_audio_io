@@ -14,11 +14,34 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    tts_config_path = PythonExpression([
+        "'",
+        LaunchConfiguration('tts_config_path'),
+        "' if '",
+        LaunchConfiguration('tts_config_path'),
+        "' != '' else (",
+        "'/userdata/magicbox/dep/matcha-icefall-zh-baker' if '",
+        LaunchConfiguration('language_type'),
+        "' == 'zh' else '/userdata/magicbox/dep/matcha-icefall-en_US-ljspeech'"
+        ")"
+    ])
+
+    kws_config_path = PythonExpression([
+        "'",
+        LaunchConfiguration('kws_config_path'),
+        "' if '",
+        LaunchConfiguration('kws_config_path'),
+        "' != '' else (",
+        "'/userdata/magicbox/dep/sherpa-onnx/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01' if '",
+        LaunchConfiguration('language_type'),
+        "' == 'zh' else '/userdata/magicbox/dep/sherpa-onnx/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'"
+        ")"
+    ])
     return LaunchDescription([
         SetEnvironmentVariable(
             'RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'
@@ -32,17 +55,9 @@ def generate_launch_description():
             default_value='/prompt_text',
             description='hobot audio publish topic name'),
         DeclareLaunchArgument(
-            'tts_config_path',
-            default_value='/userdata/magicbox/dep/matcha-icefall-zh-baker',
-            description='TTS config path'),
-        DeclareLaunchArgument(
             'asr_model_path',
             default_value='/userdata/magicbox/config/sense-voice-small-fp16.gguf',
             description='ASR model path'),
-        DeclareLaunchArgument(
-            'kws_config_path',
-            default_value='/userdata/magicbox/dep/sherpa-onnx/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
-            description='KWS config path'),
         DeclareLaunchArgument(
             "continuous_wake_mode", 
             default_value="False",
@@ -51,6 +66,18 @@ def generate_launch_description():
             "wait_for_llm", 
             default_value="True",
             description='should we wait for the large model to start'),
+         DeclareLaunchArgument(
+            "language_type", 
+            default_value="zh",
+            description='Language type, only supports zh or en.'),
+        DeclareLaunchArgument(
+            'tts_config_path',
+            default_value='',
+            description='TTS config path'),
+        DeclareLaunchArgument(
+            'kws_config_path',
+            default_value='',
+            description='KWS config path'),
         # 启动音频采集pkg
         Node(
             package='audio_io',
@@ -59,11 +86,12 @@ def generate_launch_description():
             parameters=[
                 {"micphone_name": LaunchConfiguration('micphone_name')},
                 {"asr_pub_topic_name": LaunchConfiguration('asr_pub_topic_name'),
-                "tts_config_path": LaunchConfiguration('tts_config_path'),
+                "tts_config_path": tts_config_path,
+                "kws_config_path": kws_config_path,
                 "asr_model_path": LaunchConfiguration('asr_model_path'),
-                "kws_config_path": LaunchConfiguration('kws_config_path'),
                 "continuous_wake_mode": LaunchConfiguration('continuous_wake_mode'),
                 "wait_for_llm": LaunchConfiguration('wait_for_llm'),
+                "language_type": LaunchConfiguration('language_type'),
                 }
             ],
             arguments=['--ros-args', '--log-level', 'warn']

@@ -75,6 +75,7 @@ HBAudioIo::HBAudioIo(const std::string &node_name,
                                        continuous_wake_mode_);
   this->declare_parameter<bool>("wait_for_llm",
                                        wait_for_llm_);
+  this->declare_parameter<std::string>("language_type", language_type_);
 
   this->get_parameter<std::string>("micphone_name",
                                    micphone_name_);
@@ -94,17 +95,26 @@ HBAudioIo::HBAudioIo(const std::string &node_name,
                                    continuous_wake_mode_);
   this->get_parameter<bool>("wait_for_llm",
                                        wait_for_llm_);
+  this->get_parameter<std::string>("language_type", language_type_);
 
 
-  
+  if (language_type_ != "zh" && language_type_ != "en"){
+    language_type_ = "zh";
+    RCLCPP_WARN(rclcpp::get_logger("audio_io"), "Language_type setting error, you set it to %s, only supports zh or en. The default setting is zh", language_type_.c_str());
+  }
   int err_code = 0;
   std::stringstream ss;
   ss << "Parameter:"
      << "\n micphone_name: " << micphone_name_
      << "\n audio_pub_topic_name: " << audio_pub_topic_name_
      << "\n asr_pub_topic_name: " << asr_pub_topic_name_
+     << "\n tts_sub_topic_name: " << tts_sub_topic_name_
      << "\n asr_model_path_: " << asr_model_path_
-     << "\n tts_sub_topic_name: " << tts_sub_topic_name_;
+     << "\n tts_config_path: " << tts_config_path_
+     << "\n kws_config_path: " << kws_config_path_
+     << "\n language_type: " << language_type_
+     << "\n wait_for_llm: " << wait_for_llm_
+     << "\n continuous_wake_mode: " << continuous_wake_mode_;
   RCLCPP_WARN(rclcpp::get_logger("audio_io"), "%s", ss.str().c_str());
 }
 
@@ -137,11 +147,11 @@ int HBAudioIo::Init() {
   }
 
   //加载TTS
-  sherpa_tts_.Init(micphone_name_, tts_config_path_);
+  sherpa_tts_.Init(micphone_name_, tts_config_path_, language_type_);
 
   RCLCPP_WARN_STREAM(rclcpp::get_logger("audio_io"),
     "asr_model_path_ is [" << asr_model_path_ << "]");
-   speech_engine::Instance()->Init(asr_model_path_, kws_config_path_, std::bind(&HBAudioIo::PubASRDataFunc, this, std::placeholders::_1, std::placeholders::_2));
+   speech_engine::Instance()->Init(asr_model_path_, kws_config_path_, language_type_, std::bind(&HBAudioIo::PubASRDataFunc, this, std::placeholders::_1, std::placeholders::_2));
 
   // system("rm ./*.pcm -rf");
   if (save_audio_) {
@@ -316,7 +326,9 @@ int HBAudioIo::MicphoneGetThread() {
 
 //ASR数据发布函数，提供ASR内容以及KWS检测内容
 void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
-  if(containsChinese(cmd_word) == false || cmd_word.size() < 5) return;
+  if (language_type_ == "zh"){
+    if(containsChinese(cmd_word) == false || cmd_word.size() < 5) return;
+  }
   
   // continuous_wake_mode_为持续唤醒模型，即所有对话需要通过唤醒词实现交互
   if (continuous_wake_mode_ == false){
@@ -326,7 +338,7 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
     micphone_cv_.notify_one();
 
     //除结束对话外，其他关键词视为唤醒
-    if (key_word == "结束对话" || key_word == "束对话"){
+    if ((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "end conversation")){
       publish_ = false;
     } else if (key_word == cmd_word){
       publish_ = true;
@@ -357,9 +369,12 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
     
       lamp.set_lamp_effects(LightMode::Breathing);
     }
-  } else {
+  } 
+
+  //处理唤醒事件
+  else {
     static bool has_wakeup = false;
-    if(key_word == "结束对话" || key_word == "束对话") return;
+    if((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "end conversation")) return;
     //若仅有唤醒词，则将has_wakeup置为true并退出，等待下一轮语音输入
     //否则则查看是否带有唤醒词，若有则剔除关键词，发送内容
     if(key_word == cmd_word) {
@@ -377,12 +392,11 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
     
     }
     if(has_wakeup == true){
-
+      
       std::unique_lock<std::mutex> micphone_lock(micphone_mtx_);
       micphone_stop_ = true;
       micphone_lock.unlock();
       micphone_cv_.notify_one();
-
 
       lamp.set_lamp_effects(LightMode::Thinking);
       RCLCPP_WARN(rclcpp::get_logger("audio_io"), "recv cmd word:%s", cmd_word.c_str());
@@ -415,7 +429,7 @@ int HBAudioIo::TTSThread() {
     tts_data_queue_.pop();
     tts_queue_lock.unlock();
     if(rclcpp::ok()){
-      if (containsChinese(tts_msg_)){
+      if ((language_type_ == "en" && tts_msg_ != "<end>") || (language_type_ == "zh" && (containsChinese(tts_msg_)))){
         //所有文字内容加上句号结尾，保证TTS朗读正常
         tts_msg_ = tts_msg_ + "。";
         auto audio = sherpa_tts_.tts_ptr_->Generate(tts_msg_, 0, 1.0f, nullptr);
@@ -429,7 +443,7 @@ int HBAudioIo::TTSThread() {
         playback_queue_lock.unlock();
         playback_queue_cv_.notify_one();
       }
-      if(tts_msg_ == "end"){
+      if(tts_msg_ == "<end>"){
         std::unique_lock<std::mutex> playback_queue_lock(playback_queue_mtx_);
         PlaybackItem p;
         p.playback = false;

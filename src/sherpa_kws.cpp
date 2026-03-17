@@ -134,3 +134,35 @@ bool SherpaKWS::ExtractChineseFromFile(std::vector<std::string> &key_words_list)
     fin.close();
     return true;
 }
+bool SherpaKWS::ExtractEnglishFromFile(std::vector<std::string> &key_words_list) {
+    std::ifstream fin(key_words_file_);
+    if (!fin.is_open()) {
+        std::cerr << "无法打开文件: " << key_words_file_ << std::endl;
+        return false;
+    }
+    std::string line;
+    while (std::getline(fin, line)) {
+      std::stringstream ss(line);
+      std::string token;
+      std::string result;
+
+      while (ss >> token) {
+        if (token[0] == ':' || token[0] == '#')
+            break;
+        if (token.rfind("▁", 0) == 0) {
+            if (!result.empty())
+                result += " ";
+            token = token.substr(3);
+        }
+        result += token;
+      }
+
+      // 转小写
+      for (auto &c : result) {
+          c = std::tolower(c);
+      }
+      key_words_list.push_back(result);
+    }
+    fin.close();
+    return true;
+}

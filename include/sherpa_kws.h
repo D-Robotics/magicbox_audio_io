@@ -29,6 +29,7 @@ public:
   void Init(const std::string &config_path, bool use_int8);
   std::string GetKeyWord(std::vector<float> &samples);
   bool ExtractChineseFromFile(std::vector<std::string> &key_words_list);
+  bool ExtractEnglishFromFile(std::vector<std::string> &key_words_list);
   ~SherpaKWS(){}
 private:
   std::unique_ptr<sherpa_onnx::KeywordSpotter> keyword_spotter_ptr_;

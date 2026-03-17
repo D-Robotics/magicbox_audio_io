@@ -130,6 +130,7 @@ class HBAudioIo : public rclcpp::Node {
   SherpaTTS sherpa_tts_;
   std::shared_ptr<sherpa_onnx::AlsaPlay> alsa_ = nullptr;
   bool start_run_ = false;
+  std::string language_type_ = "zh";
   rclcpp::TimerBase::SharedPtr timer_;
 };
 

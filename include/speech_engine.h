@@ -47,6 +47,8 @@ struct sense_voice_params {
     // vad params
     float threshold      = 0.5f;
     float neg_threshold = 0.35f;
+    // float threshold      = 0.2f;
+    // float neg_threshold = 0.2f;
     int32_t min_speech_duration_ms = 250;
     int32_t max_speech_duration_ms = 5000;
     int32_t min_silence_duration_ms = 100;
@@ -99,7 +101,7 @@ class speech_engine {
     return engine;
   }
   ~speech_engine(){}
-  int Init(const std::string &cfg_path, const std::string &kws_cfg_path, ASRCallBackFunc cmd_func);
+  int Init(const std::string &cfg_path, const std::string &kws_cfg_path, const std::string &language_type, ASRCallBackFunc cmd_func);
   int DeInit();
   int Start();
   int Stop();
@@ -122,7 +124,8 @@ class speech_engine {
   int triggered = 0;
   std::shared_ptr<std::vector<double>> vad_data_ptr = nullptr;
   std::vector<double> vad_mute;
-
+  std::vector<double> pre_buffer;
+  const int PRE_BUFFER_SIZE = sample_rate * 2 / 5;
   std::thread process_thread;
 
   std::atomic<bool> stop_flag{false};
@@ -142,6 +145,8 @@ class speech_engine {
   std::chrono::system_clock::time_point vad_send;
   std::chrono::system_clock::time_point vad_stop;
   SherpaKWS sherpa_kws_;
+
+  std::string language_type_ = "zh";
 };
 
 #endif

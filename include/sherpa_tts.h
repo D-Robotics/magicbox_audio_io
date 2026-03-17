@@ -31,7 +31,7 @@ struct PlaybackItem {
 class SherpaTTS{
   public:
     SherpaTTS();
-    void Init(std::string &device_name, std::string &config_path);
+    void Init(std::string &device_name, std::string &config_path, std::string &language_type);
     ~SherpaTTS(){}
     std::shared_ptr<sherpa_onnx::OfflineTts> tts_ptr_ = nullptr;
   private:
