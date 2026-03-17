@@ -338,7 +338,7 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
     micphone_cv_.notify_one();
 
     //除结束对话外，其他关键词视为唤醒
-    if ((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "end conversation")){
+    if ((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "stop conversation")){
       publish_ = false;
     } else if (key_word == cmd_word){
       publish_ = true;
@@ -374,7 +374,7 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
   //处理唤醒事件
   else {
     static bool has_wakeup = false;
-    if((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "end conversation")) return;
+    if((language_type_ == "zh" && (key_word == "结束对话" || key_word == "束对话")) || (language_type_ == "en" && key_word == "stop conversation")) return;
     //若仅有唤醒词，则将has_wakeup置为true并退出，等待下一轮语音输入
     //否则则查看是否带有唤醒词，若有则剔除关键词，发送内容
     if(key_word == cmd_word) {
