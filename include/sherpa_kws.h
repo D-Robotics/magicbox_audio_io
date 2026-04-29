@@ -12,13 +12,10 @@
 #include <utility>
 #include <vector>
 
-#include "sherpa-onnx/csrc/keyword-spotter.h"
-#include "sherpa-onnx/csrc/online-stream.h"
-#include "sherpa-onnx/csrc/parse-options.h"
-#include "sherpa-onnx/csrc/wave-reader.h"
+#include "sherpa-onnx/c-api/c-api.h"
 
 typedef struct {
-  std::unique_ptr<sherpa_onnx::OnlineStream> online_stream;
+  std::unique_ptr<SherpaOnnxOnlineStream> online_stream;
   std::string filename;
 } Stream;
 
@@ -31,6 +28,6 @@ public:
   bool ExtractChineseFromFile(std::vector<std::string> &key_words_list);
   ~SherpaKWS(){}
 private:
-  std::unique_ptr<sherpa_onnx::KeywordSpotter> keyword_spotter_ptr_;
+  const SherpaOnnxKeywordSpotter* keyword_spotter_ptr_ = nullptr;
   std::string key_words_file_ = "";
 };

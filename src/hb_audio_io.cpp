@@ -142,7 +142,6 @@ int HBAudioIo::Init() {
   RCLCPP_WARN_STREAM(rclcpp::get_logger("audio_io"),
     "asr_model_path_ is [" << asr_model_path_ << "]");
    speech_engine::Instance()->Init(asr_model_path_, kws_config_path_, std::bind(&HBAudioIo::PubASRDataFunc, this, std::placeholders::_1, std::placeholders::_2));
-
   // system("rm ./*.pcm -rf");
   if (save_audio_) {
     audio_infile_.open("./audio_in.pcm",
@@ -418,10 +417,14 @@ int HBAudioIo::TTSThread() {
       if (containsChinese(tts_msg_)){
         //所有文字内容加上句号结尾，保证TTS朗读正常
         tts_msg_ = tts_msg_ + "。";
-        auto audio = sherpa_tts_.tts_ptr_->Generate(tts_msg_, 0, 1.0f, nullptr);
+        const SherpaOnnxGeneratedAudio *audio =
+            SherpaOnnxOfflineTtsGenerateWithConfig(sherpa_tts_.tts_ptr_, tts_msg_.c_str(), &sherpa_tts_.tts_cfg_, NULL,
+                                                  NULL);
+        // auto audio = sherpa_tts_.tts_ptr_->Generate(tts_msg_, 0, 1.0f, nullptr);
         PlaybackItem p;
-        p.samples = std::move(audio.samples);
-        p.sample_rate = audio.sample_rate;
+        p.samples.assign(audio->samples, audio->samples + audio->n);
+        p.sample_rate = audio->sample_rate;
+        SherpaOnnxDestroyOfflineTtsGeneratedAudio(audio);
         p.playback = true;
 
         std::unique_lock<std::mutex> playback_queue_lock(playback_queue_mtx_);
@@ -468,7 +471,7 @@ int HBAudioIo::SpeakerThread() {
     }
     
     if(micphone_stop_ == true){
-      sherpa_onnx::AlsaPlay alsa(micphone_name_.c_str(), item.sample_rate > 0 ? item.sample_rate : sherpa_tts_.tts_ptr_->SampleRate());
+      sherpa_onnx::AlsaPlay alsa(micphone_name_.c_str(), item.sample_rate > 0 ? item.sample_rate : 16000);
       if (!item.samples.empty()) {
           alsa.Play(item.samples);
       }

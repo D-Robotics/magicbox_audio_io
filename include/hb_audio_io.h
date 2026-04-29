@@ -29,6 +29,7 @@
 
 #include "sherpa_tts.h"
 #include "utils/alsa_device.h"
+#include "utils/alsa-play.h"
 
 #include "audio_msg/msg/smart_audio_data.hpp"
 #include "rclcpp/rclcpp.hpp"

@@ -14,8 +14,7 @@
 #include <future>
 #include <sstream>
 
-#include "sherpa-onnx/csrc/offline-tts.h"
-#include "sherpa-onnx/csrc/alsa-play.h"
+#include "sherpa-onnx/c-api/c-api.h"
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -33,10 +32,8 @@ class SherpaTTS{
     SherpaTTS();
     void Init(std::string &device_name, std::string &config_path);
     ~SherpaTTS(){}
-    std::shared_ptr<sherpa_onnx::OfflineTts> tts_ptr_ = nullptr;
-  private:
-    sherpa_onnx::ParseOptions po_;
-    int32_t sid_ = 0;
+    const SherpaOnnxOfflineTts *tts_ptr_ = nullptr;
+    SherpaOnnxGenerationConfig tts_cfg_ = {0};
 };
 
 

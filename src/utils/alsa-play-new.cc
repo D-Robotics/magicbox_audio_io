@@ -1,10 +1,7 @@
 // sherpa-onnx/csrc/alsa-play.cc
 //
 // Copyright (c)  2022-2023  Xiaomi Corporation
-
-#ifdef SHERPA_ONNX_ENABLE_ALSA
-
-#include "sherpa-onnx/csrc/alsa-play.h"
+#include "utils/alsa-play.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -189,5 +186,3 @@ void AlsaPlay::Drain() {
 }
 
 }  // namespace sherpa_onnx
-
-#endif  // SHERPA_ONNX_ENABLE_ALSA

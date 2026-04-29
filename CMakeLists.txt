@@ -35,36 +35,10 @@ find_package(jsoncpp REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(lighting_control REQUIRED)
 
-set(SHERPA_PATH_LIST ${CMAKE_SOURCE_DIR}/sherpa-onnx ${CMAKE_SOURCE_DIR}/sherpa-onnx-master)
-foreach(dir ${SHERPA_PATH_LIST})
-    if(EXISTS "${dir}")
-        set(SHERPA_PATH "${dir}")
-        break()
-    endif()
-endforeach()
-set(CC_PATH ${SHERPA_PATH}/sherpa-onnx/csrc)
-
-
-file(GLOB DEP_INCLUDE_DIRS  
-    ${SHERPA_PATH}/build/_deps/*-src/src/include
-    ${SHERPA_PATH}/build/_deps/*-src/include
-    ${SHERPA_PATH}/build/_deps/*-src
-    ${SHERPA_PATH}/build/_deps/*-src/src
-)
-
-add_definitions(-DSHERPA_ONNX_ENABLE_ALSA=1)
-option(SHERPA_ONNX_ENABLE_TTS "Enable TTS (text-to-speech) support" ON)
 
 include_directories(
   include
   ${DEP_INCLUDE_DIRS}
-  ${SHERPA_PATH}
-)
-
-link_directories(
-  ${SHERPA_PATH}/build/lib
-  ${SHERPA_PATH}/build/_deps/onnxruntime-src/lib
-  ${SHERPA_PATH}/build/lib
 )
 
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/SenseVoiceGGUF")
@@ -169,27 +143,26 @@ link_directories(
 
 add_executable(${PROJECT_NAME}
   src/utils/alsa_device.cpp
+  src/utils/alsa-play-new.cc
+  src/utils/resample.cc
   src/hb_audio_io.cpp
   src/speech_engine.cpp
   src/audio_example.cpp
-  src/sherap_tts/sherpa_tts.cpp
-  src/sherap_tts/alsa-play-new.cc
+  src/sherpa_tts.cpp
   src/sherpa_kws.cpp
 )
 
-
-#set(BASE_LIBRARIES pthread dl rt m)
 set(BASE_LIBRARIES pthread)
-set(X3_AUDIO_LIB asound sense-voice-core ggml-cpu ggml-base ggml jsoncpp)
+set(AUDIO_LIB asound sense-voice-core ggml-cpu ggml-base ggml jsoncpp)
 
-set(TTS_LIB  sherpa-onnx-core
+set(TTS_LIB  
+  sherpa-onnx-c-api
+  sherpa-onnx-core
+  sherpa-onnx-kaldifst-core
   kaldi-native-fbank-core
   kissfft-float
-  asound
-  fstfar
-  fst
-  sherpa-onnx-kaldifst-core
-  cppinyin_core
+  sherpa-onnx-fstfar
+  sherpa-onnx-fst
   onnxruntime
   espeak-ng
   ucd
@@ -198,7 +171,7 @@ set(TTS_LIB  sherpa-onnx-core
 
 
 target_link_libraries(${PROJECT_NAME}
-   ${X3_AUDIO_LIB} ${X3_HAPI_LIB} ${BASE_LIBRARIES}  pthread ${TTS_LIB} kaldi-decoder-core ssentencepiece_core
+   ${AUDIO_LIB} ${BASE_LIBRARIES}  pthread ${TTS_LIB} kaldi-decoder-core ssentencepiece_core
 )
 
 ament_target_dependencies(${PROJECT_NAME} rclcpp geometry_msgs audio_msg std_srvs lighting_control)

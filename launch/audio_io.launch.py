@@ -33,7 +33,7 @@ def generate_launch_description():
             description='hobot audio publish topic name'),
         DeclareLaunchArgument(
             'tts_config_path',
-            default_value='/userdata/magicbox/dep/matcha-icefall-zh-baker',
+            default_value='/userdata/magicbox/dep/sherpa-onnx/matcha-icefall-zh-baker',
             description='TTS config path'),
         DeclareLaunchArgument(
             'asr_model_path',

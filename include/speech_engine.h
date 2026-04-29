@@ -73,7 +73,7 @@ struct sense_voice_params {
     bool print_progress  = false;
     bool no_timestamps   = false;
     bool log_score       = false;
-    bool use_gpu         = true;
+    bool use_gpu         = false;
     bool flash_attn      = false;
     bool use_itn         = false;
 

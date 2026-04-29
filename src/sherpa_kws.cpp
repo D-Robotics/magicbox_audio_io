@@ -3,6 +3,8 @@
 #include <iostream>
 #include <unistd.h>
 #include <limits.h>
+#include <cstring>
+#include <fstream>
 
 static std::string GetProgramPath() {
     char result[PATH_MAX];
@@ -41,52 +43,40 @@ void SherpaKWS::Init(const std::string &config_path, bool use_int8){
     for a list of pre-trained models to download.
     )usage";
 
-  sherpa_onnx::ParseOptions po(kUsageMessage);
-  sherpa_onnx::KeywordSpotterConfig config;
-
-  
+  SherpaOnnxKeywordSpotterConfig config;
+  memset(&config, 0, sizeof(config));
   std::string i8_suffix = "";
   if (use_int8 == true){
     std::string i8_suffix = ".int8";
   }
-  std::string name = GetProgramPath();
-  std::vector<std::string> args = {
-      name,
-      "--encoder=" + config_path + "/encoder-epoch-12-avg-2-chunk-16-left-64" + i8_suffix + ".onnx",
-      "--decoder=" + config_path + "/decoder-epoch-12-avg-2-chunk-16-left-64" + i8_suffix + ".onnx",
-      "--joiner=" + config_path + "/joiner-epoch-12-avg-2-chunk-16-left-64" + i8_suffix + ".onnx",
-      "--tokens=" + config_path + "/tokens.txt",
-      "--keywords-file=" + config_path + "/keywords.txt",
-      ""
-  };
-  size_t pos = args[5].find('=');
-  if (pos != std::string::npos && pos + 1 < args[5].size()) {
-      key_words_file_ = args[5].substr(pos + 1);
-  } else {
-      std::cerr << "Path not found" << std::endl;
-      return;
-  }
-  
-  std::vector<char*> argv2;
-  for (auto& s : args) {
-      argv2.push_back(const_cast<char*>(s.c_str()));
-  }
-  int argc2 = static_cast<int>(argv2.size());
+  std::string encoder =
+      config_path + "/encoder-epoch-12-avg-2-chunk-16-left-64" +
+      i8_suffix + ".onnx";
+  std::string decoder =
+      config_path + "/decoder-epoch-12-avg-2-chunk-16-left-64" +
+      i8_suffix + ".onnx";
+  std::string joiner =
+      config_path + "/joiner-epoch-12-avg-2-chunk-16-left-64" +
+      i8_suffix + ".onnx";
+  std::string tokens =
+      config_path + "/tokens.txt";
+  std::string keywords_file =
+      config_path + "/keywords.txt";
 
-  config.Register(&po);
-  po.Read(argc2, argv2.data());
-  if (po.NumArgs() < 1) {
-    po.PrintUsage();
-    exit(EXIT_FAILURE);
-  }
+  config.model_config.transducer.encoder = encoder.c_str();
+  config.model_config.transducer.decoder = decoder.c_str();
+  config.model_config.transducer.joiner  = joiner.c_str();
 
-  fprintf(stderr, "%s\n", config.ToString().c_str());
+  config.model_config.tokens = tokens.c_str();
+  config.keywords_file       = keywords_file.c_str();
 
-  if (!config.Validate()) {
-    fprintf(stderr, "Errors in config!\n");
-  }
+  config.model_config.provider = "cpu";
+  // config.model_config.num_threads = 1;
+  // config.model_config.debug = 1;
 
-  keyword_spotter_ptr_ = std::make_unique<sherpa_onnx::KeywordSpotter>(config);
+  key_words_file_ = keywords_file;
+
+  keyword_spotter_ptr_ = SherpaOnnxCreateKeywordSpotter(&config);
 }
 
 
@@ -94,24 +84,25 @@ void SherpaKWS::Init(const std::string &config_path, bool use_int8){
 std::string SherpaKWS::GetKeyWord(std::vector<float> &samples){
   int32_t sampling_rate = 16000;
 
-  auto s = keyword_spotter_ptr_->CreateStream();
-  s->AcceptWaveform(sampling_rate, samples.data(), samples.size());
+  const SherpaOnnxOnlineStream *stream = SherpaOnnxCreateKeywordStream(keyword_spotter_ptr_);
+  SherpaOnnxOnlineStreamAcceptWaveform(stream, sampling_rate, samples.data(), samples.size());
 
   std::vector<float> tail_paddings(static_cast<int>(0.8 * sampling_rate));
-  s->AcceptWaveform(sampling_rate, tail_paddings.data(),
-                    tail_paddings.size());
-
-  s->InputFinished();
+  SherpaOnnxOnlineStreamAcceptWaveform(stream, sampling_rate, tail_paddings.data(),
+                                       tail_paddings.size());
+  SherpaOnnxOnlineStreamInputFinished(stream);
   std::string result = "";
-  while (keyword_spotter_ptr_->IsReady(s.get())) {
-    keyword_spotter_ptr_->DecodeStream(s.get());
+  while (SherpaOnnxIsKeywordStreamReady(keyword_spotter_ptr_, stream)) {
+    SherpaOnnxDecodeKeywordStream(keyword_spotter_ptr_, stream);
 
-    auto r = keyword_spotter_ptr_->GetResult(s.get());
-    if (!r.keyword.empty()) {
-      keyword_spotter_ptr_->Reset(s.get());
-      result = r.keyword;
+    auto *r = SherpaOnnxGetKeywordResult(keyword_spotter_ptr_, stream);
+    if (strlen(r->keyword) > 0) {
+      SherpaOnnxResetKeywordStream(keyword_spotter_ptr_, stream);
+      result = r->keyword;
+      SherpaOnnxDestroyKeywordResult(r);
       return result;
     }
+    SherpaOnnxDestroyKeywordResult(r);
   }
   return result;
 }
@@ -120,7 +111,7 @@ std::string SherpaKWS::GetKeyWord(std::vector<float> &samples){
 bool SherpaKWS::ExtractChineseFromFile(std::vector<std::string> &key_words_list) {
     std::ifstream fin(key_words_file_);
     if (!fin.is_open()) {
-        std::cerr << "无法打开文件: " << key_words_file_ << std::endl;
+        std::cerr << "[ERROR] Unable to open the file: " << key_words_file_ << std::endl;
         return false;
     }
     std::string line;
