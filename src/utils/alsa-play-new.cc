@@ -2,7 +2,7 @@
 //
 // Copyright (c)  2022-2023  Xiaomi Corporation
 #include "utils/alsa-play.h"
-
+#include <iostream>
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -140,49 +140,55 @@ void AlsaPlay::Play(const std::vector<float> &samples) {
 }
 
 void AlsaPlay::Drain() {
-  // int32_t err = snd_pcm_drain(handle_);
-  // if (err < 0) {
-  //   printf("Failed to drain pcm. %s\n", snd_strerror(err));
-  // }
-  while (true) {
-      snd_pcm_sframes_t delay = 0;
-      int ret = snd_pcm_delay(handle_, &delay);
+    snd_pcm_sframes_t last_delay = -1;
+    int same_count = 0;
 
-      if (ret == -EINTR) {
-          // 再试一次
-          continue;
-      }
+    while (true) {
+        snd_pcm_sframes_t delay = 0;
+        int ret = snd_pcm_delay(handle_, &delay);
 
-      if (ret == -EPIPE) {
-          // XRUN：播放中断 → 需要恢复
-          snd_pcm_prepare(handle_);
-          continue;
-      }
+        if (ret == -EINTR) {
+            continue;
+        }
 
-      if (ret == -ESTRPIPE) {
-          // 声卡挂起（USB设备常见）
-          while ((ret = snd_pcm_resume(handle_)) == -EAGAIN) {
-              usleep(1000);
-          }
-          if (ret < 0) {
-              snd_pcm_prepare(handle_);
-          }
-          continue;
-      }
+        if (ret == -EPIPE) {
+            snd_pcm_prepare(handle_);
+            continue;
+        }
 
-      if (ret < 0) {
-          fprintf(stderr, "snd_pcm_delay failed: %s\n", snd_strerror(ret));
-          break;
-      }
+        if (ret == -ESTRPIPE) {
+            while ((ret = snd_pcm_resume(handle_)) == -EAGAIN) {
+                usleep(1000);
+            }
+            if (ret < 0) {
+                snd_pcm_prepare(handle_);
+            }
+            continue;
+        }
 
-      if (delay <= 0) {
-          // 已经全部播放完
-          break;
-      }
+        if (ret < 0) {
+            fprintf(stderr, "snd_pcm_delay failed: %s\n", snd_strerror(ret));
+            break;
+        }
 
-      // 控制查询频率，3ms 足够精确
-      usleep(3000);
-  }
+        // 正常播放完成
+        if (delay <= 0) {
+            break;
+        }
+
+        // 判断是否连续相同
+        if (delay == last_delay) {
+            ++same_count;
+            if (same_count >= 3) {
+                break;
+            }
+        } else {
+            last_delay = delay;
+            same_count = 0;
+        }
+
+        usleep(3000);
+    }
 }
 
 }  // namespace sherpa_onnx

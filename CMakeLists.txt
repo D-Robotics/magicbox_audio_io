@@ -25,6 +25,16 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
+option(USE_LIGHT_CONTROL "Use lighting_control" ON)
+
+if(USE_LIGHT_CONTROL)
+    target_compile_definitions(audio_io PRIVATE
+        USE_LIGHT_CONTROL
+    )
+    find_package(lighting_control REQUIRED)
+endif()
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -33,7 +43,7 @@ find_package(audio_msg REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(jsoncpp REQUIRED)
 find_package(std_srvs REQUIRED)
-find_package(lighting_control REQUIRED)
+
 
 
 include_directories(
@@ -174,7 +184,12 @@ target_link_libraries(${PROJECT_NAME}
    ${AUDIO_LIB} ${BASE_LIBRARIES}  pthread ${TTS_LIB} kaldi-decoder-core ssentencepiece_core
 )
 
-ament_target_dependencies(${PROJECT_NAME} rclcpp geometry_msgs audio_msg std_srvs lighting_control)
+ament_target_dependencies(${PROJECT_NAME} rclcpp geometry_msgs audio_msg std_srvs)
+
+if(USE_LIGHT_CONTROL)
+  ament_target_dependencies(lighting_control)
+endif()
+
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

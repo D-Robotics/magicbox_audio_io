@@ -36,7 +36,7 @@ void SherpaTTS::Init(std::string &device_name, std::string &config_path){
     config.model.matcha.dict_dir      = dict_dir.c_str();
     config.rule_fsts = rule_fsts.c_str();
     config.model.provider = "cpu";
-    // config.model.num_threads = 1;
+    config.model.num_threads = 8;
     // config.model.debug = 1;
     tts_ptr_ = SherpaOnnxCreateOfflineTts(&config);
     tts_cfg_.sid = 0;

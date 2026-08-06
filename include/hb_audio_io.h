@@ -35,7 +35,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_srvs/srv/trigger.hpp"
+
+#ifdef USE_LIGHT_CONTROL
 #include "lighting_control/ws2812b.h"
+#endif
 
 namespace hobot {
 namespace audio {
@@ -127,7 +130,9 @@ class HBAudioIo : public rclcpp::Node {
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr asr_msg_publisher_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr tts_msg_subscriber_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr status_service_;
+  #ifdef USE_LIGHT_CONTROL
   WS2812B lamp;
+  #endif
   SherpaTTS sherpa_tts_;
   std::shared_ptr<sherpa_onnx::AlsaPlay> alsa_ = nullptr;
   bool start_run_ = false;

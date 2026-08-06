@@ -46,6 +46,9 @@ rm sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
 4、编译
 ```shell
 colcon build --packages-select audio_io
+
+#不支持SPI灯光
+colcon build --packages-select audio_io --cmake-args -DUSE_LIGHT_CONTROL=OFF
 ```
 
 

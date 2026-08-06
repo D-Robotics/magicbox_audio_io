@@ -52,8 +52,12 @@ static bool containsChinese(const std::string& str) {
 
 HBAudioIo::HBAudioIo(const std::string &node_name,
                                const NodeOptions &options)
-    : rclcpp::Node(node_name, options), lamp(5), sherpa_tts_(){
-  
+    : rclcpp::Node(node_name, options), 
+#ifdef USE_LIGHT_CONTROL
+      lamp(5),
+#endif
+      sherpa_tts_()
+{
   std::string tros_distro
       = std::string(std::getenv("TROS_DISTRO")? std::getenv("TROS_DISTRO") : "");
 
@@ -326,21 +330,27 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
 
     //除结束对话外，其他关键词视为唤醒
     if (key_word == "结束对话" || key_word == "束对话"){
+      RCLCPP_WARN(rclcpp::get_logger("audio_io"), "进入休眠模式，可通过“你好地瓜”唤醒");
       publish_ = false;
     } else if (key_word == cmd_word){
+      RCLCPP_WARN(rclcpp::get_logger("audio_io"), "已唤醒，可以开始对话");
       publish_ = true;
     }
     
     if (publish_ == true){
       if (key_word == cmd_word){
+        #ifdef USE_LIGHT_CONTROL
         lamp.set_all_same_color(0, 0, 255);
+        #endif
         micphone_lock.lock();
         micphone_stop_ = false;
         micphone_lock.unlock();
         micphone_cv_.notify_one();
         return;
       }
+      #ifdef USE_LIGHT_CONTROL
       lamp.set_lamp_effects(LightMode::Thinking);
+      #endif
       RCLCPP_WARN(rclcpp::get_logger("audio_io"), "recv cmd word:%s", cmd_word.c_str());
       audio_msg::msg::SmartAudioData::UniquePtr frame(new audio_msg::msg::SmartAudioData());
       frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_CMD_WORD;
@@ -353,8 +363,9 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
       micphone_stop_ = false;
       micphone_lock.unlock();
       micphone_cv_.notify_one();
-    
+      #ifdef USE_LIGHT_CONTROL
       lamp.set_lamp_effects(LightMode::Breathing);
+      #endif
     }
   } else {
     static bool has_wakeup = false;
@@ -363,7 +374,9 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
     //否则则查看是否带有唤醒词，若有则剔除关键词，发送内容
     if(key_word == cmd_word) {
       has_wakeup = true;
+      #ifdef USE_LIGHT_CONTROL
       lamp.set_blink(2, 0, 0, 255);
+      #endif
       return;
     } else {
       if (cmd_word.find(key_word) != std::string::npos && key_word != ""){
@@ -382,8 +395,9 @@ void HBAudioIo::PubASRDataFunc(std::string cmd_word, std::string key_word) {
       micphone_lock.unlock();
       micphone_cv_.notify_one();
 
-
+      #ifdef USE_LIGHT_CONTROL
       lamp.set_lamp_effects(LightMode::Thinking);
+      #endif
       RCLCPP_WARN(rclcpp::get_logger("audio_io"), "recv cmd word:%s", cmd_word.c_str());
       audio_msg::msg::SmartAudioData::UniquePtr frame(new audio_msg::msg::SmartAudioData());
       frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_CMD_WORD;
@@ -451,6 +465,7 @@ int HBAudioIo::TTSThread() {
 int HBAudioIo::SpeakerThread() {
   
   while (rclcpp::ok()) {
+    
     PlaybackItem item;
     std::unique_lock<std::mutex> playback_queue_lock(playback_queue_mtx_);
     playback_queue_cv_.wait(playback_queue_lock, [this] { return !playback_queue_.empty() || exiting_; });
@@ -466,10 +481,11 @@ int HBAudioIo::SpeakerThread() {
       micphone_stop_ = false;
       micphone_lock.unlock();
       micphone_cv_.notify_one();
+      #ifdef USE_LIGHT_CONTROL
       lamp.set_all_same_color(0, 0, 255);
+      #endif
       continue;
     }
-    
     if(micphone_stop_ == true){
       sherpa_onnx::AlsaPlay alsa(micphone_name_.c_str(), item.sample_rate > 0 ? item.sample_rate : 16000);
       if (!item.samples.empty()) {
@@ -514,7 +530,9 @@ void HBAudioIo::CheckLLMNodeExistence()
       micphone_stop_ = true;
       micphone_lock.unlock();
       micphone_cv_.notify_one();
+      #ifdef USE_LIGHT_CONTROL
       lamp.clear();
+      #endif
   }
 
   // 更新观察状态
